@@ -1,0 +1,36 @@
+# Build artifacts
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+build/
+bld/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# Rider / VS Code
+.idea/
+.vscode/
+
+# Resharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+
+# Test output
+TestResults/
+
+# NuGet
+*.nupkg
+packages/
+
+# OS
+Thumbs.db
+.DS_Store

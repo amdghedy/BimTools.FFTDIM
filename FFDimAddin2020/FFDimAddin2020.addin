@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <!--
+    FFTDIM — Fire-Fighting Dimension QA tools for Revit 2020.
+    Install: copy this file to %APPDATA%\Autodesk\Revit\Addins\2020\
+    and copy the built FFDimAddin2020.dll to
+    %APPDATA%\Autodesk\Revit\Addins\2020\FFDimAddin2020\
+    (or simply run install.cmd from the repository root).
+  -->
+  <AddIn Type="Application">
+    <Name>FFTDIM — Fire-Fighting Dimension QA</Name>
+    <Assembly>FFDimAddin2020\FFDimAddin2020.dll</Assembly>
+    <AddInId>e8b7a6c5-4d3e-4f2a-9b1c-0a9f8e7d6c5b</AddInId>
+    <FullClassName>BimTools.FFTDIM.App</FullClassName>
+    <VendorId>AMDG</VendorId>
+    <VendorDescription>BimTools.FFTDIM by amdghedy — Fire-Fighting Dimension QA tools for Autodesk Revit.</VendorDescription>
+  </AddIn>
+</RevitAddIns>
