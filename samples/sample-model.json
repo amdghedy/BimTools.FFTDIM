@@ -1,0 +1,29 @@
+{
+  "modelName": "FFTDIM Demonstration Model",
+  "elements": [
+    {
+      "id": "W-001",
+      "category": "Walls",
+      "parameters": { "Mark": "W01", "HeightMm": 3000, "FireRatingMinutes": 120 }
+    },
+    {
+      "id": "W-002",
+      "category": "Walls",
+      "parameters": { "Mark": "", "HeightMm": 2800, "FireRatingMinutes": 60 }
+    },
+    {
+      "id": "D-001",
+      "category": "Doors",
+      "parameters": { "Mark": "D01", "HeightMm": 2100 }
+    },
+    {
+      "id": "D-001",
+      "category": "Doors",
+      "parameters": { "Mark": "D02", "HeightMm": 2500 }
+    },
+    {
+      "category": "Mechanical Equipment",
+      "parameters": { "Mark": "ME01", "HeightMm": "not-a-number" }
+    }
+  ]
+}

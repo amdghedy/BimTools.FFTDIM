@@ -1,0 +1,12 @@
+{
+  "requiredParametersByCategory": {
+    "*": ["Mark"],
+    "Walls": ["HeightMm", "FireRatingMinutes"],
+    "Doors": ["HeightMm"]
+  },
+  "uniqueIdFields": ["id", "Mark"],
+  "numericRanges": {
+    "HeightMm": { "min": 100, "max": 15000 },
+    "FireRatingMinutes": { "min": 0, "max": 240 }
+  }
+}
