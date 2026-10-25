@@ -10,6 +10,7 @@ internal static class Program
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true,
         AllowTrailingCommas = true,
         ReadCommentHandling = JsonCommentHandling.Skip
@@ -57,12 +58,14 @@ internal static class Program
             var report = Auditor.Run(model, rules);
             var json = JsonSerializer.Serialize(report, JsonOptions);
             var jsonPath = Path.GetFullPath(options.JsonOutputPath ?? "fftdim-audit-report.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(jsonPath)!);
             await File.WriteAllTextAsync(jsonPath, json + Environment.NewLine, new UTF8Encoding(false));
 
             string? csvPath = null;
             if (options.CsvOutputPath is not null)
             {
                 csvPath = Path.GetFullPath(options.CsvOutputPath);
+                Directory.CreateDirectory(Path.GetDirectoryName(csvPath)!);
                 await WriteCsvAsync(csvPath, report);
             }
 
@@ -344,7 +347,10 @@ internal static class Auditor
     private static bool TryGetDouble(JsonElement value, out double number)
     {
         if (value.ValueKind == JsonValueKind.Number) return value.TryGetDouble(out number);
-        return value.ValueKind == JsonValueKind.String &&
-               double.TryParse(value.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out number);
+        if (value.ValueKind == JsonValueKind.String &&
+            double.TryParse(value.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out number))
+            return true;
+        number = 0;
+        return false;
     }
 }
