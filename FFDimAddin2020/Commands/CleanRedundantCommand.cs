@@ -32,7 +32,10 @@ namespace BimTools.FFTDIM.Commands
                 return Result.Cancelled;
             }
 
-            IList<Dimension> dimensions = DimensionScanner.Collect(doc, view.Id);
+            AppSettings settings = AppSettingsStore.LoadOrDefaults();
+
+            IList<Dimension> dimensions = DimensionScanner.Collect(doc, view.Id, settings.IncludeSpotDimensions);
+            double zeroToleranceFeet = settings.ZeroValueThresholdFeet;
 
             var toDelete = new List<ElementId>();
             int duplicateCount = 0;
@@ -51,7 +54,7 @@ namespace BimTools.FFTDIM.Commands
             foreach (Dimension dim in dimensions)
             {
                 if (!dim.Value.HasValue) continue;
-                if (Math.Abs(dim.Value.Value) >= DimensionScanner.ZeroValueToleranceFeet) continue;
+                if (Math.Abs(dim.Value.Value) >= zeroToleranceFeet) continue;
                 if (toDelete.Contains(dim.Id)) continue;
                 toDelete.Add(dim.Id);
                 zeroCount++;

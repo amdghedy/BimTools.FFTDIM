@@ -135,15 +135,28 @@ Each finding includes the rule code, severity, element ID/category when availabl
 
 FFTDIM (**FF** = Fire-Fighting, **DIM** = Dimension QA) is a Revit 2020 add-in that audits, cleans and creates dimensions for fire-fighting content: sprinklers, fire-protection piping, fittings and fire equipment. The boundary between build-verified facts and items that require live verification in Revit is stated explicitly (see *Quality assurance and verification* below).
 
+**What's new in v1.1:**
+
+- **FFD-08 Settings & Options** — one dialog for every tunable: zero-value threshold, spacing-chain offset/extension, clearance skip threshold and search radius, walls-over-grids preference, default report format, interface language. Persisted to `%APPDATA%\BimTools\FFTDIM\settings.json`.
+- **FFD-09 Batch Audit Views** — tick any number of plans/sections/elevations/drafting/3D views and audit them in one run; findings are merged and tagged with their view.
+- **Pipe clearance (FFD-06)** — linear fire pipes are now dimensioned to the nearest wall face/grid at the middle of the run, alongside point families.
+- **Spot dimensions** — opt-in inclusion in scans (spot elevations/coordinates stay out by default to avoid noise).
+- **Linked-model flagging** — dimensions whose references resolve into a linked Revit model are reported (Info) instead of being silently skipped.
+- **JSON reports** — machine-readable export alongside CSV and HTML (Power BI / CI friendly).
+- **Richer results window** — severity filter, live text search, View column, CSV/HTML/JSON export buttons.
+- **Arabic UI** — captions of windows and the ribbon localise through a built-in string table (English / العربية, right-to-left aware).
+- **Multi-version install** — `install.cmd 2020|2021|2022|2023|2024` writes the manifest to the matching per-user add-ins folder; the same net48 assembly serves all five versions.
+- Fixed a latent compile defect: `DimensionScanner.cs` used LINQ without `using System.Linq;`.
+
 ### What FFTDIM does
 
 FFTDIM adds a ribbon tab **FF Tools** to Revit with three panels of commands:
 
 | Panel | Commands |
 |---|---|
-| **Dimension QA** | Audit Dimensions · Clean Redundant · Coverage Check · Tolerance Check |
+| **Dimension QA** | Audit Dimensions · Clean Redundant · Coverage Check · Tolerance Check · Batch Audit Views |
 | **Quick Dimension** | Spacing Chain · Clearance |
-| **Output** | Export Report |
+| **Output** | Export Report · Settings & Options |
 
 The problem it addresses: on fire-fighting documentation, dimension sets drift out of sync with the model — dimensions snap to deleted geometry, duplicate copies pile up, sprinkler layouts get modified without their dimensions following, and spacing rules are only checked by eye. FFTDIM turns those checks into one-click commands and produces exportable evidence (CSV/HTML) of what was checked and what failed.
 
@@ -157,7 +170,8 @@ The problem it addresses: on fire-fighting documentation, dimension sets drift o
 | Tolerance Check | FF Tools › Dimension QA | Active view | No (edits user settings file) | Rules editor + results window |
 | Spacing Chain | FF Tools › Quick Dimension | Selected elements | Creates one dimension | New dimension, auto-selected |
 | Clearance | FF Tools › Quick Dimension | Selected elements | Creates dimensions | New dimensions, auto-selected |
-| Export Report | FF Tools › Output | Active view | No | CSV or HTML file |
+| Export Report | FF Tools › Output | Active view | No | CSV / HTML / JSON file |
+| Settings & Options | FF Tools › Output | — (application level) | No | `settings.json` |
 
 ### Supported environment
 
@@ -171,7 +185,7 @@ The problem it addresses: on fire-fighting documentation, dimension sets drift o
 | Install scope | Per-user (`%APPDATA%\Autodesk\Revit\Addins\2020`) |
 | UI language | English |
 
-Revit 2021–2024 load 2020-built `.NET Framework 4.8` add-ins **only if** they ship a matching `*.addin` manifest per version; FFTDIM is currently packaged for 2020 only. Multi-version support is on the roadmap.
+Revit 2021–2024 load 2020-built `.NET Framework 4.8` add-ins **only if** they ship a matching `*.addin` manifest per version. `install.cmd` accepts a version argument (`install.cmd 2021`) and copies the same manifest + assembly into that version's per-user add-ins folder; the API surface used by FFTDIM is stable across 2020–2024, but each version should still be verified live before production use.
 
 ### Build
 
@@ -202,10 +216,11 @@ Output: `FFDimAddin2020/bin/Release/FFDimAddin2020.dll`.
 **Option A — script (recommended):**
 
 ```bat
-install.cmd
+install.cmd          REM Revit 2020 (default)
+install.cmd 2022     REM Revit 2022
 ```
 
-The script copies the manifest and the built DLL into `%APPDATA%\Autodesk\Revit\Addins\2020\`.
+The script copies the manifest and the built DLL into `%APPDATA%\Autodesk\Revit\Addins\<version>\`. Supported versions: 2020–2024.
 
 **Option B — manual:**
 
@@ -221,11 +236,13 @@ Restart Revit. Verify: the **FF Tools** tab appears in the ribbon.
 - **Purpose:** find broken, duplicated and orphaned dimensions before issuing drawings.
 - **Selection scope:** every `Dimension` element visible in the active view (plan, section, elevation, drafting). Schedules, sheets and legends are rejected with a message.
 - **Checks performed:**
-  - *Zero-value dimensions* — value < 0.5 mm, typically a snapped-to-nothing reference (Error).
+  - *Zero-value dimensions* — value below the configurable zero-value threshold (default 0.5 mm), typically a snapped-to-nothing reference (Error).
   - *Duplicate dimensions* — two dimensions sharing the exact same reference set (Warning; the one with the lower element id is treated as the keeper).
   - *Orphaned references* — a reference points at an element id that no longer resolves (Warning).
   - *Zero-length chain segments* — a multi-segment dimension contains a dead segment (Error).
-- **Outputs:** results window with severity, type, element, formatted value and detail; double-click a row to select and zoom to the element; CSV/HTML export.
+  - *Linked-model references* — a reference resolves into a linked Revit file; the nested geometry is outside the scope of the detailed checks (Info, can be disabled).
+  - *Spot dimensions* — spot elevations and spot coordinates are scanned only when enabled in Settings & Options (they are excluded by default because their fixed values would flood the zero-value and duplicate checks with noise).
+- **Outputs:** results window with severity filter, live text search, severity/type/element/value/view/detail columns; double-click a row to select and zoom to the element; CSV/HTML/JSON export.
 - **Failure handling:** read-only; no transaction is opened. Errors surface through the Revit failure message.
 
 #### FFD-02 · Clean Redundant
@@ -256,14 +273,26 @@ Restart Revit. Verify: the **FF Tools** tab appears in the ribbon.
 
 #### FFD-06 · Clearance
 - **Purpose:** dimension each selected fire-fighting element to its nearest constraint.
-- **Selection:** one or more point-based fire-fighting families in a **plan view**.
-- **Processing:** per element, finds the nearest grid line or wall **in the active view** (wall interior face preferred, exterior face fallback; grid centre line otherwise), then creates a dimension from the element centre to that target along the perpendicular direction. Elements within 50 mm of the target are skipped.
+- **Selection:** one or more point-based fire-fighting families **or linear fire pipes** in a **plan view**.
+- **Processing:** per element, finds the nearest grid line or wall **in the active view** within the configured search radius (default 10 m; wall interior face preferred, exterior face fallback; grid centre line otherwise), then creates a dimension from the element centre — or, for pipes, from the middle of the run's centreline — to that target along the perpendicular direction. Elements within the skip threshold (default 50 mm) of the target are skipped. The walls-over-grids preference (Settings & Options) makes the closest wall win even when a grid line is marginally closer.
 - **Outputs:** all created dimensions are selected and zoomed to; skipped elements are listed with reasons.
-- **Failure handling:** one transaction for the whole batch; per-element failures are reported individually and do not abort the batch.
+- **Failure handling:** one transaction for the whole batch; per-element failures are reported individually and do not abort the batch. Pipe clearance uses the pipe's location-curve reference first and the element centreline reference as fallback; unsupported pipe shapes are skipped with the reason.
 
 #### FFD-07 · Export Report
 - **Purpose:** produce reviewable evidence of the audit state of a view.
-- **Processing:** runs the same audit as FFD-01 and writes a timestamped file (`FFTDIM_Audit_yyyyMMdd_HHmm.csv|html`). CSV is UTF-8 with BOM (Excel-safe); HTML is a self-contained styled table.
+- **Processing:** runs the same audit as FFD-01 and writes a timestamped file (`FFTDIM_Audit_yyyyMMdd_HHmm.csv|html|json`). CSV is UTF-8 with BOM (Excel-safe); HTML is a self-contained styled table; JSON is machine-readable (Power BI / CI friendly). The format chosen in Settings & Options is marked as the default in the chooser.
+
+#### FFD-08 · Settings & Options
+- **Purpose:** one place to tune every threshold and default the add-in uses.
+- **Scope:** application level — works without an open document, never touches the model.
+- **Options:** zero-value threshold (mm), include spot dimensions, flag linked-model references, spacing-chain offset and end extension (m), clearance skip threshold (mm), clearance search radius (m), walls-over-grids preference, default report format (CSV/HTML/JSON), interface language (English/العربية).
+- **Persistence:** `%APPDATA%\BimTools\FFTDIM\settings.json`. Missing entries in an older file fall back to defaults, so upgrades are safe. Language changes apply to new windows immediately and to the ribbon after the next Revit start.
+
+#### FFD-09 · Batch Audit Views
+- **Purpose:** audit a whole document (or a selected subset of views) in one run instead of repeating FFD-01 view by view.
+- **Selection:** a checklist of every auditable view (floor/ceiling/structural plans, sections, elevations, drafting, 3D) — templates, schedules, sheets and legends are excluded automatically.
+- **Processing:** runs the FFD-01 audit per selected view and merges the findings; every issue keeps the name of its view. Read-only.
+- **Outputs:** the shared results window (filter by severity, search, export) with the View column populated; a single CSV/HTML/JSON export covers all audited views.
 
 ### Configuration — tolerance rules
 
@@ -284,6 +313,31 @@ Format (edited via the FFD-04 dialog; fields are metres, `0` = no limit):
 
 > The shipped defaults are **layout envelopes, not code requirements**. Adapt them to the standard governing your project (e.g. NFPA 13, EN 12845, local civil defence requirements) before relying on the results.
 
+### Configuration — options (`settings.json`)
+
+File: `%APPDATA%\BimTools\FFTDIM\settings.json` (edited via the FFD-08 dialog):
+
+```json
+{
+  "ZeroValueThresholdMm": 0.5,
+  "IncludeSpotDimensions": false,
+  "FlagLinkedReferences": true,
+  "ChainOffsetMeters": 1.0,
+  "ChainExtensionMeters": 0.3,
+  "ClearanceSkipMm": 50.0,
+  "ClearanceSearchRadiusMeters": 10.0,
+  "PreferWallsOverGrids": false,
+  "DefaultReportFormat": 0,
+  "Language": 0
+}
+```
+
+`DefaultReportFormat`: 0 = CSV, 1 = HTML, 2 = JSON. `Language`: 0 = English, 1 = Arabic. The file is shared by every installed Revit version; entries written by an older release keep their defaults until edited.
+
+### Interface language
+
+FFTDIM ships with an English and an Arabic (العربية) UI. Window titles, column headers, buttons and option labels are localised through a built-in string table; windows switch to right-to-left layout under Arabic. Ribbon captions follow the language saved in `settings.json` on the next Revit start. Command tooltips and TaskDialog messages remain English in this release — they are documented in this README instead.
+
 ### Recommended user workflow
 
 1. Open a **copy** of the model or a controlled test project.
@@ -291,7 +345,8 @@ Format (edited via the FFD-04 dialog; fields are metres, `0` = no limit):
 3. Run **Audit Dimensions** — review, then run **Clean Redundant** if duplicates exist.
 4. Run **Coverage Check** — dimension the reported gaps (Spacing Chain / Clearance help here).
 5. Run **Tolerance Check** with project-adapted rules.
-6. **Export Report** for the QA record; note tool version + Revit build + view name.
+6. **Batch Audit Views** before issuing: audit every FF plan of the document in one pass and export the merged report.
+7. **Export Report** for the QA record; note tool version + Revit build + view name.
 
 ### Quality assurance and verification
 
@@ -299,19 +354,23 @@ Format (edited via the FFD-04 dialog; fields are metres, `0` = no limit):
 - The source targets the Revit 2020 API surface (`Dimension`, `DimensionSegment`, `FilteredElementCollector`, `UnitFormatUtils`/`SpecTypeId`, `FamilyInstance.GetReferences`, `HostObjectUtils.GetSideFaces`, `Creation.Document.NewDimension`) and compiles as C# 7.3 / net48 with the SDK-style project.
 
 **Requires live verification in Revit 2020 (first run):**
-- Ribbon tab/panel creation and button loading on a clean machine.
+- Ribbon tab/panel creation and button loading on a clean machine (now 9 buttons, including Settings & Options and Batch Audit Views).
 - Behaviour on real projects: family reference availability varies between sprinkler families; the fire-element heuristics (see below) may need tuning to project naming conventions.
 - Full end-to-end runs of FFD-05/FFD-06 on representative sprinkler families.
+- FFD-06 pipe path: dimensioning from the pipe location-curve/centreline reference to wall faces on real pipe runs (curved runs, vertical pipes and insulated pipes may need refinement).
+- FFD-09 batch run across a multi-view document (performance on large projects, view list completeness).
+- Arabic UI: layout and text direction of both dialogs on a machine with Arabic locale.
 
 Report results (and screenshots) per release in this section — do not claim a check passed without evidence.
 
 ### Known limitations
 
-- **Linked models:** dimensions referencing geometry in linked Revit files are not analysed (their references resolve to the link instance, not the nested element).
-- **Spot dimensions** (`SpotDimension`) and radial/arc dimensions are not collected.
+- **Linked models:** dimensions referencing geometry in linked Revit files are flagged (Info) rather than analysed; the nested linked geometry is outside the scope of every check.
+- **Spot dimensions** (`SpotDimension`) are excluded from scans by default and only included when opted in via Settings & Options; radial/arc dimensions are always collected normally.
 - **Fire-element detection** is heuristic: category + piping-system classification + connector system + name keywords (`sprinkler`, `hydrant`, `hose reel`, `fire`, `spk`). Unusual naming can cause false positives/negatives; results are spot-checkable in the UI.
-- **Clearance** does not yet dimension linear pipes to walls (point families only); pipe runs are still covered by Coverage Check and Tolerance Check.
-- **One view at a time:** no batch view/project-wide mode yet.
+- **Clearance for pipes** dimensions straight runs at the midpoint only; curved segments, vertical pipes and insulated runs are skipped or approximated. Point families and pipes are covered; other curve categories are not.
+- **Batch Audit** runs the FFD-01 checks per view; coverage and tolerance checks remain per-view commands.
+- **Arabic UI** covers window captions, headers, buttons and option labels; command tooltips and TaskDialog messages remain English in this release.
 - **Tolerance Check semantics:** any dimension referencing a sprinkler is checked against sprinkler rules — a sprinkler-to-wall clearance dimension is also subject to a spacing rule if one is enabled. Disable rules you do not want applied.
 
 ### Troubleshooting
@@ -350,28 +409,35 @@ README.md                            This file
 FFDimAddin2020/                      Revit 2020 add-in source
 ├── FFDimAddin2020.csproj            SDK-style, net48, RevitAPI refs via $(RevitApiPath)
 ├── FFDimAddin2020.addin             Revit manifest (AddIn Type="Application")
-├── App.cs                           Ribbon: FF Tools tab, 3 panels, 7 buttons
+├── App.cs                           Ribbon: FF Tools tab, 3 panels, 9 buttons
+├── Localization.cs                  EN/AR string table (L.T), right-to-left support
 ├── CommandBase.cs                   Shared command plumbing + view guards
 ├── Commands/
 │   ├── AuditDimensionsCommand.cs
 │   ├── CleanRedundantCommand.cs
 │   ├── CoverageCheckCommand.cs
 │   ├── ToleranceCheckCommand.cs
+│   ├── BatchAuditCommand.cs         FFD-09 multi-view audit
 │   ├── SpacingDimensionCommand.cs
 │   ├── ClearanceDimensionCommand.cs
-│   └── ExportReportCommand.cs
+│   ├── ExportReportCommand.cs
+│   └── SettingsCommand.cs           FFD-08 options dialog (no document required)
 ├── Core/
 │   ├── Models.cs                    DimensionIssue / FireElementInfo / AuditResult
 │   ├── UnitHelper.cs                Feet ↔ m/mm + project-unit formatting
 │   ├── FireFightingFilter.cs        Fire-element detection heuristics
-│   ├── DimensionScanner.cs          Dimension collection + reference keys
+│   ├── DimensionScanner.cs          Dimension collection + reference keys + link detection
 │   ├── RedundancyFinder.cs          Duplicate reference-set grouping
 │   ├── DimensionAuditor.cs          Audit / coverage / tolerance engines
+│   ├── BatchAuditor.cs              Multi-view audit runner + auditable-view collector
 │   ├── ToleranceRule.cs             Rule model + JSON store + defaults
-│   └── ReportExporter.cs            CSV / HTML writers
+│   ├── AppSettings.cs               Options model + %APPDATA% JSON store
+│   └── ReportExporter.cs            CSV / HTML / JSON writers
 └── UI/
-    ├── AuditResultsWindow.cs        WPF results grid (code-built, no XAML)
-    └── ToleranceSettingsWindow.cs
+    ├── AuditResultsWindow.cs        WPF results grid + filter/search/export (no XAML)
+    ├── ToleranceSettingsWindow.cs
+    ├── SettingsWindow.cs            FFD-08 options dialog (code-built WPF)
+    └── ViewPickerWindow.cs          FFD-09 view checklist (code-built WPF)
 ```
 
 ---
@@ -382,7 +448,16 @@ GitHub Actions builds the CLI project (`src/BimTools.FFTDIM/`) and runs the incl
 
 ## Planned next capabilities
 
-These are potential next steps, not implemented features:
+Done in v1.1 (Revit add-in track):
+
+- ~~Multi-version install (2020–2024) with per-version `.addin` manifests~~ — `install.cmd <version>`
+- ~~Spot-dimension support in the scanner~~ — opt-in via Settings & Options
+- ~~Pipe clearance dimensioning (linear runs to walls)~~ — FFD-06 now covers pipes
+- ~~Batch mode: run audits across selected views and merge reports~~ — FFD-09
+- ~~Localized UI (Arabic) behind a language setting~~ — Settings & Options
+- ~~Linked-model dimension analysis~~ — first step done: linked references are detected and flagged; nested linked-model geometry analysis remains open
+
+Still planned:
 
 1. A native BIM host adapter to extract model elements and parameters (CLI track).
 2. More advanced rule operators, severity configuration, exclusions, and rule profiles (CLI track).
@@ -390,13 +465,8 @@ These are potential next steps, not implemented features:
 4. HTML dashboard and summary by discipline, level, system, and category (CLI track).
 5. Regression tests and larger sample datasets (CLI track).
 6. Optional geometry, spatial, and coordination checks once a host adapter and reliable geometry source are defined.
-7. Multi-version build (2020–2024) with per-version `.addin` manifests (Revit add-in track).
-8. Linked-model dimension analysis (Revit add-in track).
-9. Spot-dimension support in the scanner (Revit add-in track).
-10. Pipe clearance dimensioning (linear runs to walls) (Revit add-in track).
-11. Batch mode: run audits across selected views and merge reports (Revit add-in track).
-12. BCF/issue round-trip for findings (both tracks).
-13. Localized UI (Arabic) behind a language setting (Revit add-in track).
+7. Full analysis of dimensions that reference linked-model geometry (nested elements, link transforms).
+8. BCF/issue round-trip for findings (both tracks).
 
 ## Contributing
 

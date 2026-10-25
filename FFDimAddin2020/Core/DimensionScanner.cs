@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Autodesk.Revit.DB;
 
 namespace BimTools.FFTDIM.Core
@@ -9,17 +10,52 @@ namespace BimTools.FFTDIM.Core
     /// </summary>
     public static class DimensionScanner
     {
-        /// <summary>Values smaller than this (≈ 0.5 mm) are treated as zero-length.</summary>
+        /// <summary>
+        /// Default zero-value tolerance (≈ 0.5 mm). Used when no <see cref="AppSettings"/>
+        /// is supplied; the auditor otherwise derives the tolerance from the user settings.
+        /// </summary>
         public const double ZeroValueToleranceFeet = 0.00164042;
 
-        /// <summary>Collects all Dimension elements visible in the given view.</summary>
+        /// <summary>Collects all Dimension elements visible in the given view (spot dimensions excluded).</summary>
         public static IList<Dimension> Collect(Document doc, ElementId viewId)
         {
-            return new FilteredElementCollector(doc, viewId)
+            return Collect(doc, viewId, false);
+        }
+
+        /// <summary>
+        /// Collects Dimension elements visible in the given view. Spot dimensions (spot
+        /// elevations and spot coordinates) are only included when the user opted in via
+        /// settings — their fixed zero-ish values would otherwise flood the zero-value and
+        /// duplicate checks with noise.
+        /// </summary>
+        public static IList<Dimension> Collect(Document doc, ElementId viewId, bool includeSpotDimensions)
+        {
+            IEnumerable<Dimension> query = new FilteredElementCollector(doc, viewId)
                 .OfClass(typeof(Dimension))
                 .Cast<Dimension>()
-                .Where(d => d != null)
-                .ToList();
+                .Where(d => d != null);
+
+            if (!includeSpotDimensions)
+            {
+                query = query.Where(d => !(d is SpotDimension));
+            }
+
+            return query.ToList();
+        }
+
+        /// <summary>
+        /// True when at least one reference of the dimension resolves into a linked
+        /// Revit model. Such references point at the RevitLinkInstance element, so the
+        /// nested geometry cannot be analysed in detail by this tool.
+        /// </summary>
+        public static bool ReferencesLinkedModel(Document doc, Dimension dim)
+        {
+            if (doc == null || dim == null) return false;
+            foreach (ElementId referenceId in GetReferenceElementIds(dim))
+            {
+                if (doc.GetElement(referenceId) is RevitLinkInstance) return true;
+            }
+            return false;
         }
 
         /// <summary>Returns the model element ids behind a dimension's references.</summary>

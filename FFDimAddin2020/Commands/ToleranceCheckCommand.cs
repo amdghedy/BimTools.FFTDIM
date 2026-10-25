@@ -32,8 +32,8 @@ namespace BimTools.FFTDIM.Commands
 
             List<ToleranceRule> rules = ToleranceRuleStore.LoadOrDefaults();
 
-            var settings = new ToleranceSettingsWindow(rules);
-            bool? accepted = settings.ShowDialog();
+            var settingsDialog = new ToleranceSettingsWindow(rules);
+            bool? accepted = settingsDialog.ShowDialog();
             if (accepted != true) return Result.Cancelled;
 
             ToleranceRuleStore.Save(rules);
@@ -45,7 +45,10 @@ namespace BimTools.FFTDIM.Commands
                 return Result.Succeeded;
             }
 
-            AuditResult result = DimensionAuditor.ToleranceAudit(doc, view, rules);
+            AppSettings settings = AppSettingsStore.LoadOrDefaults();
+            L.Apply(settings);
+
+            AuditResult result = DimensionAuditor.ToleranceAudit(doc, view, rules, settings);
             if (result.Issues.Count == 0)
             {
                 TaskDialog.Show(App.Brand, string.Format(
