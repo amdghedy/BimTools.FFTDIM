@@ -26,6 +26,9 @@ namespace BimTools.FFTDIM.UI
 
         private readonly CheckBox _includeSpot = new CheckBox { Margin = new Thickness(2, 3, 2, 3) };
         private readonly CheckBox _flagLinked = new CheckBox { Margin = new Thickness(2, 3, 2, 3) };
+        private readonly CheckBox _linkedCoverage = new CheckBox { Margin = new Thickness(2, 3, 2, 3) };
+        private readonly CheckBox _bcfTopicPerIssue = new CheckBox { Margin = new Thickness(2, 3, 2, 3) };
+        private readonly CheckBox _bcfCamera = new CheckBox { Margin = new Thickness(2, 3, 2, 3) };
         private readonly CheckBox _preferWalls = new CheckBox { Margin = new Thickness(2, 3, 2, 3) };
 
         private readonly ComboBox _format = new ComboBox { MinWidth = 160 };
@@ -52,6 +55,9 @@ namespace BimTools.FFTDIM.UI
             _clearanceRadius.Text = settings.ClearanceSearchRadiusMeters.ToString("0.0#", CultureInfo.InvariantCulture);
             _includeSpot.IsChecked = settings.IncludeSpotDimensions;
             _flagLinked.IsChecked = settings.FlagLinkedReferences;
+            _linkedCoverage.IsChecked = settings.LinkedCoverageCheck;
+            _bcfTopicPerIssue.IsChecked = settings.BcfTopicPerIssue;
+            _bcfCamera.IsChecked = settings.BcfIncludeCamera;
             _preferWalls.IsChecked = settings.PreferWallsOverGrids;
 
             _format.Items.Add("CSV (Excel)");
@@ -81,6 +87,11 @@ namespace BimTools.FFTDIM.UI
                 MakeOptionRow(L.T("OptClearanceSkip"), _clearanceSkip),
                 MakeOptionRow(L.T("OptClearanceRadius"), _clearanceRadius),
                 _preferWalls));
+
+            stack.Children.Add(MakeGroup(L.T("GroupLinkedBcf"),
+                _linkedCoverage,
+                _bcfTopicPerIssue,
+                _bcfCamera));
 
             stack.Children.Add(MakeGroup(L.T("GroupReports"),
                 MakeOptionRow(L.T("OptDefaultFormat"), _format)));
@@ -197,6 +208,9 @@ namespace BimTools.FFTDIM.UI
             _clearanceRadius.Text = defaults.ClearanceSearchRadiusMeters.ToString("0.0#", CultureInfo.InvariantCulture);
             _includeSpot.IsChecked = defaults.IncludeSpotDimensions;
             _flagLinked.IsChecked = defaults.FlagLinkedReferences;
+            _linkedCoverage.IsChecked = defaults.LinkedCoverageCheck;
+            _bcfTopicPerIssue.IsChecked = defaults.BcfTopicPerIssue;
+            _bcfCamera.IsChecked = defaults.BcfIncludeCamera;
             _preferWalls.IsChecked = defaults.PreferWallsOverGrids;
             _format.SelectedIndex = (int)defaults.DefaultReportFormat;
             _language.SelectedIndex = (int)defaults.Language;
@@ -235,6 +249,9 @@ namespace BimTools.FFTDIM.UI
             _settings.ZeroValueThresholdMm = zero;
             _settings.IncludeSpotDimensions = _includeSpot.IsChecked == true;
             _settings.FlagLinkedReferences = _flagLinked.IsChecked == true;
+            _settings.LinkedCoverageCheck = _linkedCoverage.IsChecked == true;
+            _settings.BcfTopicPerIssue = _bcfTopicPerIssue.IsChecked == true;
+            _settings.BcfIncludeCamera = _bcfCamera.IsChecked == true;
             _settings.ChainOffsetMeters = chainOffset;
             _settings.ChainExtensionMeters = chainExtension;
             _settings.ClearanceSkipMm = clearanceSkip;

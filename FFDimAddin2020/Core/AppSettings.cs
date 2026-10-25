@@ -47,6 +47,22 @@ namespace BimTools.FFTDIM.Core
         public bool FlagLinkedReferences { get; set; } = true;
 
         // ------------------------------------------------------------------
+        //  Linked models and BCF
+        // ------------------------------------------------------------------
+
+        /// <summary>FFD-10: check fire-element coverage inside linked models, not only in the host document.</summary>
+        [DataMember]
+        public bool LinkedCoverageCheck { get; set; } = true;
+
+        /// <summary>FFD-11: one BCF topic per finding (true) or a single topic listing every finding (false).</summary>
+        [DataMember]
+        public bool BcfTopicPerIssue { get; set; } = true;
+
+        /// <summary>FFD-11: embed a viewpoint (camera + component selection) in each BCF topic.</summary>
+        [DataMember]
+        public bool BcfIncludeCamera { get; set; } = true;
+
+        // ------------------------------------------------------------------
         //  Quick dimension
         // ------------------------------------------------------------------
 
