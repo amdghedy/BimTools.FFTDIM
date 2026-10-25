@@ -26,8 +26,22 @@ namespace BimTools.FFTDIM.Core
         CoverageGap,
 
         /// <summary>At least one reference of the dimension resolves into a linked Revit model;
-        /// linked-model geometry is outside the scope of the detailed checks.</summary>
-        LinkedReference
+        /// carries the resolved linked-element description when produced by FFD-10.</summary>
+        LinkedReference,
+
+        /// <summary>FFD-10: a reference points into a linked model, but the element it names
+        /// no longer exists inside the linked document (broken cross-link reference).</summary>
+        LinkedElementMissing,
+
+        /// <summary>FFD-10: a fire-fighting element living inside a linked model is not
+        /// referenced by any dimension of the active view.</summary>
+        LinkedCoverageGap,
+
+        /// <summary>FFD-10: informational record about one linked model (inventory/summary).</summary>
+        LinkedModelInfo,
+
+        /// <summary>FFD-10: the linked model is unloaded; its dimensions cannot be resolved.</summary>
+        LinkedModelUnloaded
     }
 
     /// <summary>Severity levels used for reporting and sorting.</summary>
@@ -87,6 +101,10 @@ namespace BimTools.FFTDIM.Core
         public int TotalDimensions { get; set; }
         public int TotalFireElements { get; set; }
         public int CoveredFireElements { get; set; }
+
+        /// <summary>Number of linked Revit models involved in the audit (FFD-10); 0 for the other commands.</summary>
+        public int LinkedModelCount { get; set; }
+
         public List<DimensionIssue> Issues { get; } = new List<DimensionIssue>();
 
         public int CountBySeverity(IssueSeverity severity)
@@ -103,7 +121,7 @@ namespace BimTools.FFTDIM.Core
         {
             get
             {
-                return string.Format(
+                string summary = string.Format(
                     "{0} dimensions scanned · {1} fire-fighting elements ({2} covered) · {3} findings ({4} error, {5} warning, {6} info)",
                     TotalDimensions,
                     TotalFireElements,
@@ -112,6 +130,12 @@ namespace BimTools.FFTDIM.Core
                     CountBySeverity(IssueSeverity.Error),
                     CountBySeverity(IssueSeverity.Warning),
                     CountBySeverity(IssueSeverity.Info));
+
+                if (LinkedModelCount > 0)
+                {
+                    summary += string.Format(" · {0} linked model{1}", LinkedModelCount, LinkedModelCount == 1 ? "" : "s");
+                }
+                return summary;
             }
         }
     }

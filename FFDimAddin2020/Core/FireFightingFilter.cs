@@ -23,18 +23,7 @@ namespace BimTools.FFTDIM.Core
         /// <summary>Collects all fire-fighting elements visible in the given view.</summary>
         public static List<FireElementInfo> CollectInView(Document doc, View view)
         {
-            var categories = new List<BuiltInCategory>
-            {
-                BuiltInCategory.OST_Sprinklers,
-                BuiltInCategory.OST_PipeCurves,
-                BuiltInCategory.OST_PipeFittings,
-                BuiltInCategory.OST_PipeInsulations,
-                BuiltInCategory.OST_MechanicalEquipment,
-                BuiltInCategory.OST_GenericModel,
-                BuiltInCategory.OST_SpecialityEquipment
-            };
-
-            var categoryFilter = new ElementMulticategoryFilter(categories);
+            var categoryFilter = MakeCategoryFilter();
             var results = new List<FireElementInfo>();
 
             foreach (Element element in new FilteredElementCollector(doc, view.Id)
@@ -46,6 +35,42 @@ namespace BimTools.FFTDIM.Core
             }
 
             return results;
+        }
+
+        /// <summary>
+        /// Collects fire-fighting elements across the whole document, independent of any
+        /// view. Used by the linked-model audit (FFD-10) to inventory the content of a
+        /// linked Revit file — a link document has no view of its own to filter against.
+        /// </summary>
+        public static List<FireElementInfo> CollectAll(Document doc)
+        {
+            var categoryFilter = MakeCategoryFilter();
+            var results = new List<FireElementInfo>();
+
+            foreach (Element element in new FilteredElementCollector(doc)
+                         .WhereElementIsNotElementType()
+                         .WherePasses(categoryFilter))
+            {
+                if (element == null || !IsFireFighting(element)) continue;
+                results.Add(Describe(element));
+            }
+
+            return results;
+        }
+
+        private static ElementMulticategoryFilter MakeCategoryFilter()
+        {
+            var categories = new List<BuiltInCategory>
+            {
+                BuiltInCategory.OST_Sprinklers,
+                BuiltInCategory.OST_PipeCurves,
+                BuiltInCategory.OST_PipeFittings,
+                BuiltInCategory.OST_PipeInsulations,
+                BuiltInCategory.OST_MechanicalEquipment,
+                BuiltInCategory.OST_GenericModel,
+                BuiltInCategory.OST_SpecialityEquipment
+            };
+            return new ElementMulticategoryFilter(categories);
         }
 
         /// <summary>Builds a descriptive record for one element.</summary>

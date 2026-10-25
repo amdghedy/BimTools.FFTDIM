@@ -7,9 +7,9 @@ namespace BimTools.FFTDIM
 {
     /// <summary>
     /// FFTDIM application entry point. Creates the "FF Tools" ribbon tab with three panels:
-    ///   Dimension QA  — Audit Dimensions, Clean Redundant, Coverage Check, Tolerance Check, Batch Audit Views
+    ///   Dimension QA  — Audit Dimensions, Clean Redundant, Coverage Check, Tolerance Check, Batch Audit Views, Linked Model Audit
     ///   Quick Dimension — Spacing Chain, Clearance
-    ///   Output        — Export Report, Settings &amp; Options
+    ///   Output        — Export Report, BCF Export, BCF Import, Settings &amp; Options
     /// Panel and button captions localise through <see cref="L"/>; the language comes from
     /// %APPDATA%\BimTools\FFTDIM\settings.json and applies on the next Revit start.
     /// </summary>
@@ -71,6 +71,14 @@ namespace BimTools.FFTDIM
                         "Pick any number of plans, sections, elevations, drafting or 3D views, then run " +
                         "the standard dimension audit on each and review the merged results. Every " +
                         "finding is tagged with its view. Read-only.");
+                    AddButton(qaPanel, L.T("BtnLinkedAudit"), "LinkedModelAudit",
+                        "BimTools.FFTDIM.Commands.LinkedModelAuditCommand", assemblyPath,
+                        "Deep audit of dimensions that reference linked Revit models.",
+                        "Inventories every Revit link (load status, fire-element count), resolves each " +
+                        "cross-link dimension reference down to the element inside the linked document, " +
+                        "reports broken cross-link references, zero-value dimensions and duplicates, and " +
+                        "checks fire-fighting coverage inside each loaded link (switchable in Settings " +
+                        "& Options). Read-only.");
                 }
 
                 RibbonPanel quickPanel = GetOrCreatePanel(application, L.T("PanelQuick"));
@@ -101,11 +109,25 @@ namespace BimTools.FFTDIM
                         "Runs the same audit as 'Audit Dimensions' and writes the findings to a " +
                         "timestamped file of your choice. The format pre-selected in Settings & Options " +
                         "is marked as the default.");
+                    AddButton(outputPanel, L.T("BtnBcfExport"), "BcfExport",
+                        "BimTools.FFTDIM.Commands.BcfExportCommand", assemblyPath,
+                        "Export the audit findings as a BCF 2.1 issue package.",
+                        "Audits the active view and writes a .bcf package readable by BIMcollab, Revizto, " +
+                        "Autodesk Construction Cloud, Solibri and Trimble Connect. Each finding becomes a " +
+                        "topic (or all findings one merged topic, per Settings & Options) with a viewpoint " +
+                        "camera and the involved Revit elements as components. Read-only.");
+                    AddButton(outputPanel, L.T("BtnBcfImport"), "BcfImport",
+                        "BimTools.FFTDIM.Commands.BcfImportCommand", assemblyPath,
+                        "Import a BCF 2.1 package and locate its components in this model.",
+                        "Lists the topics of a .bcf / .bcfzip file (from 'BCF Export' or any BCF platform), " +
+                        "resolves the referenced Revit element ids against the current model and lets you " +
+                        "select the resolved elements of each topic for re-verification. Read-only.");
                     AddButton(outputPanel, L.T("BtnSettings"), "SettingsOptions",
                         "BimTools.FFTDIM.Commands.SettingsCommand", assemblyPath,
-                        "Configure thresholds, quick-dimension geometry, report format and language.",
+                        "Configure thresholds, quick-dimension geometry, linked-model and BCF options, report format and language.",
                         "Edits %APPDATA%\\BimTools\\FFTDIM\\settings.json: zero-value threshold, spot " +
-                        "dimensions, linked-model flagging, spacing-chain offset/extension, clearance " +
+                        "dimensions, linked-model flagging, linked-model coverage checking, BCF topic " +
+                        "granularity and viewpoint cameras, spacing-chain offset/extension, clearance " +
                         "skip threshold and search radius, walls-over-grids preference, default report " +
                         "format and the interface language (English / Arabic).");
                 }

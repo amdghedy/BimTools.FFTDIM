@@ -135,6 +135,14 @@ Each finding includes the rule code, severity, element ID/category when availabl
 
 FFTDIM (**FF** = Fire-Fighting, **DIM** = Dimension QA) is a Revit 2020 add-in that audits, cleans and creates dimensions for fire-fighting content: sprinklers, fire-protection piping, fittings and fire equipment. The boundary between build-verified facts and items that require live verification in Revit is stated explicitly (see *Quality assurance and verification* below).
 
+**What's new in v1.2:**
+
+- **FFD-10 Linked-Model Audit** — deep analysis of dimensions that reference linked Revit models: per-link inventory (load status, fire-element count), resolution of every cross-link reference down to the element inside the linked document, broken cross-link detection, zero-value/segment checks across the boundary, link-aware duplicate detection and optional fire-fighting coverage inside each loaded link.
+- **FFD-11 BCF Export** — writes audit findings as a **BCF 2.1** package (`*.bcf`) for issue round-trips with BIMcollab, Revizto, Autodesk Construction Cloud, Solibri and Trimble Connect: one topic per finding or one merged topic, each with description, comments, a viewpoint camera (3D orientation or synthesized top-down for plans) and the involved Revit elements as components (`AuthoringToolId`).
+- **FFD-12 BCF Import** — reads any BCF 2.1 package back, lists its topics in a preview window (status, author, date, component counts) and resolves the referenced element ids against the current model; one click selects the resolved elements for re-verification.
+- **3 new options** (Settings & Options › *Linked models & BCF*): linked-model coverage check on/off, BCF topic granularity, BCF viewpoint cameras. Persisted in `settings.json`.
+- All new windows and ribbon captions localise (English / العربية, right-to-left aware).
+
 **What's new in v1.1:**
 
 - **FFD-08 Settings & Options** — one dialog for every tunable: zero-value threshold, spacing-chain offset/extension, clearance skip threshold and search radius, walls-over-grids preference, default report format, interface language. Persisted to `%APPDATA%\BimTools\FFTDIM\settings.json`.
@@ -154,9 +162,9 @@ FFTDIM adds a ribbon tab **FF Tools** to Revit with three panels of commands:
 
 | Panel | Commands |
 |---|---|
-| **Dimension QA** | Audit Dimensions · Clean Redundant · Coverage Check · Tolerance Check · Batch Audit Views |
+| **Dimension QA** | Audit Dimensions · Clean Redundant · Coverage Check · Tolerance Check · Batch Audit Views · Linked Model Audit |
 | **Quick Dimension** | Spacing Chain · Clearance |
-| **Output** | Export Report · Settings & Options |
+| **Output** | Export Report · BCF Export · BCF Import · Settings & Options |
 
 The problem it addresses: on fire-fighting documentation, dimension sets drift out of sync with the model — dimensions snap to deleted geometry, duplicate copies pile up, sprinkler layouts get modified without their dimensions following, and spacing rules are only checked by eye. FFTDIM turns those checks into one-click commands and produces exportable evidence (CSV/HTML) of what was checked and what failed.
 
@@ -171,6 +179,9 @@ The problem it addresses: on fire-fighting documentation, dimension sets drift o
 | Spacing Chain | FF Tools › Quick Dimension | Selected elements | Creates one dimension | New dimension, auto-selected |
 | Clearance | FF Tools › Quick Dimension | Selected elements | Creates dimensions | New dimensions, auto-selected |
 | Export Report | FF Tools › Output | Active view | No | CSV / HTML / JSON file |
+| BCF Export | FF Tools › Output | Active view | No | BCF 2.1 package (`.bcf`) |
+| BCF Import | FF Tools › Output | — (file) | No | Topic preview window + selection |
+| Linked Model Audit | FF Tools › Dimension QA | Active view + all links | No | Results window, CSV/HTML/JSON export |
 | Settings & Options | FF Tools › Output | — (application level) | No | `settings.json` |
 
 ### Supported environment
@@ -183,7 +194,7 @@ The problem it addresses: on fire-fighting documentation, dimension sets drift o
 | Platform | Windows x64 |
 | API references | `RevitAPI.dll`, `RevitAPIUI.dll` from the Revit 2020 install (not redistributed) |
 | Install scope | Per-user (`%APPDATA%\Autodesk\Revit\Addins\2020`) |
-| UI language | English |
+| UI language | English / العربية (Arabic, right-to-left aware) |
 
 Revit 2021–2024 load 2020-built `.NET Framework 4.8` add-ins **only if** they ship a matching `*.addin` manifest per version. `install.cmd` accepts a version argument (`install.cmd 2021`) and copies the same manifest + assembly into that version's per-user add-ins folder; the API surface used by FFTDIM is stable across 2020–2024, but each version should still be verified live before production use.
 
@@ -285,7 +296,7 @@ Restart Revit. Verify: the **FF Tools** tab appears in the ribbon.
 #### FFD-08 · Settings & Options
 - **Purpose:** one place to tune every threshold and default the add-in uses.
 - **Scope:** application level — works without an open document, never touches the model.
-- **Options:** zero-value threshold (mm), include spot dimensions, flag linked-model references, spacing-chain offset and end extension (m), clearance skip threshold (mm), clearance search radius (m), walls-over-grids preference, default report format (CSV/HTML/JSON), interface language (English/العربية).
+- **Options:** zero-value threshold (mm), include spot dimensions, flag linked-model references, linked-model coverage check, BCF topic granularity, BCF viewpoint cameras, spacing-chain offset and end extension (m), clearance skip threshold (mm), clearance search radius (m), walls-over-grids preference, default report format (CSV/HTML/JSON), interface language (English/العربية).
 - **Persistence:** `%APPDATA%\BimTools\FFTDIM\settings.json`. Missing entries in an older file fall back to defaults, so upgrades are safe. Language changes apply to new windows immediately and to the ribbon after the next Revit start.
 
 #### FFD-09 · Batch Audit Views
@@ -293,6 +304,39 @@ Restart Revit. Verify: the **FF Tools** tab appears in the ribbon.
 - **Selection:** a checklist of every auditable view (floor/ceiling/structural plans, sections, elevations, drafting, 3D) — templates, schedules, sheets and legends are excluded automatically.
 - **Processing:** runs the FFD-01 audit per selected view and merges the findings; every issue keeps the name of its view. Read-only.
 - **Outputs:** the shared results window (filter by severity, search, export) with the View column populated; a single CSV/HTML/JSON export covers all audited views.
+
+#### FFD-10 · Linked-Model Audit
+- **Purpose:** deep analysis of dimensions that measure geometry in linked Revit models — the step beyond the FFD-01 "linked reference" flag.
+- **Selection scope:** the active view (for dimensions) plus **every** `RevitLinkInstance` of the host document (for inventory and coverage).
+- **Checks performed:**
+  - *Link inventory* — one Info finding per link: model name, load status, number of fire-fighting elements found inside the linked document (whole-document scan, not view-scoped).
+  - *Unloaded links* — a link whose document cannot be opened is reported (Warning); dimensions referencing it cannot be resolved and its coverage cannot be checked.
+  - *Cross-link reference resolution* — each reference with a `LinkedElementId` is resolved to the element inside the link document and described (category, name, id, link name, fire-fighting classification).
+  - *Broken cross-link references* — the reference names an element id that no longer exists inside the linked model (Error; the dimension is dead and safe to delete).
+  - *Zero-value / zero-length-segment* across the boundary — same thresholds as FFD-01, with a hint when the dimension also references linked geometry.
+  - *Link-aware duplicates* — the duplicate key mixes host ids (`H:id`) and link pairs (`L:link:element`), so a host-only dimension and a linked-geometry dimension never collide, while two dimensions measuring the same linked element do.
+  - *Linked fire-element coverage* (optional, on by default) — fire-fighting elements living inside each loaded link that no dimension of the active view references (Warning per element). Selecting such a finding highlights the link instance: Revit cannot select nested link elements from a host selection.
+- **Outputs:** shared results window + CSV/HTML/JSON export; the summary line includes the number of links scanned.
+- **Failure handling:** read-only; unloaded or unreadable links degrade to warnings, never to a failed command.
+
+#### FFD-11 · BCF Export
+- **Purpose:** hand audit findings to collaborators and BCF platforms as industry-standard BIM Collaboration Format issues.
+- **Processing:** runs the FFD-01 audit of the active view and writes a BCF **2.1** ZIP package:
+  - `bcf.version` (2.1) + `project.bcfp` (project name = document title);
+  - one topic folder per finding, or a single merged topic — per the *topic granularity* option;
+  - `markup.bcf` with topic title `[IssueType] Element`, description (severity/element/value/view/detail), an Open status, FFTDIM labels and one comment per finding;
+  - `viewpoint.bcfv` (when the camera option is on): a perspective camera taken from the 3D view orientation, or synthesized above the crop-box centre for 2D views, plus the involved Revit elements listed as `Component` entries with `AuthoringToolId` = Revit element id (max 50 per topic).
+- **Units:** camera coordinates are written in metres (BCF SI expectation; Revit internal feet × 0.3048).
+- **Snapshots:** intentionally omitted — reliable screen capture is not available inside a modal command; BCF viewers fall back to the camera.
+- **Outputs:** timestamped `FFTDIM_Audit_yyyyMMdd_HHmm.bcf`; the dialog offers to locate the file in Explorer.
+- **Failure handling:** read-only on the model; write errors (file locked, read-only folder) surface with a clear message.
+
+#### FFD-12 · BCF Import
+- **Purpose:** close the round-trip — review topics coming back from (or written by) any BCF tool and locate the affected geometry in the current model.
+- **Inputs:** a `.bcf` / `.bcfzip` package. Validation rejects non-BCF ZIPs (no `bcf.version`) with a clear message; parsing is namespace-tolerant so packages from other tools import as long as they are BCF 2.x.
+- **Processing:** lists every topic (title, status, author, creation date) in a preview window; component references (`AuthoringToolId`, decimal Revit element ids, from viewpoint selection and visibility exceptions) are resolved against the current document; unresolved references are counted, not failed — they may belong to a linked model or another project.
+- **Outputs:** topic list + detail pane (description and comments); *Select in model* highlights and zooms to the resolved elements of the selected topic for re-verification.
+- **Failure handling:** read-only; unreadable viewpoint files are skipped silently.
 
 ### Configuration — tolerance rules
 
@@ -322,6 +366,9 @@ File: `%APPDATA%\BimTools\FFTDIM\settings.json` (edited via the FFD-08 dialog):
   "ZeroValueThresholdMm": 0.5,
   "IncludeSpotDimensions": false,
   "FlagLinkedReferences": true,
+  "LinkedCoverageCheck": true,
+  "BcfTopicPerIssue": true,
+  "BcfIncludeCamera": true,
   "ChainOffsetMeters": 1.0,
   "ChainExtensionMeters": 0.3,
   "ClearanceSkipMm": 50.0,
@@ -332,7 +379,7 @@ File: `%APPDATA%\BimTools\FFTDIM\settings.json` (edited via the FFD-08 dialog):
 }
 ```
 
-`DefaultReportFormat`: 0 = CSV, 1 = HTML, 2 = JSON. `Language`: 0 = English, 1 = Arabic. The file is shared by every installed Revit version; entries written by an older release keep their defaults until edited.
+`DefaultReportFormat`: 0 = CSV, 1 = HTML, 2 = JSON. `Language`: 0 = English, 1 = Arabic. `LinkedCoverageCheck` controls the fire-element coverage phase of FFD-10. `BcfTopicPerIssue` (true = one topic per finding) and `BcfIncludeCamera` shape FFD-11. The file is shared by every installed Revit version; entries written by an older release keep their defaults until edited.
 
 ### Interface language
 
@@ -346,26 +393,32 @@ FFTDIM ships with an English and an Arabic (العربية) UI. Window titles, c
 4. Run **Coverage Check** — dimension the reported gaps (Spacing Chain / Clearance help here).
 5. Run **Tolerance Check** with project-adapted rules.
 6. **Batch Audit Views** before issuing: audit every FF plan of the document in one pass and export the merged report.
-7. **Export Report** for the QA record; note tool version + Revit build + view name.
+7. **Linked-Model Audit** on federated views: resolve and fix cross-link dimensions, then dimension the reported linked fire-element gaps (host side or via the linked model's own views).
+8. **BCF Export** the findings for the coordination meeting, **BCF Import** the resolved package afterwards and re-verify each topic with *Select in model*.
+9. **Export Report** for the QA record; note tool version + Revit build + view name.
 
 ### Quality assurance and verification
 
 **Verified for this release:**
-- The source targets the Revit 2020 API surface (`Dimension`, `DimensionSegment`, `FilteredElementCollector`, `UnitFormatUtils`/`SpecTypeId`, `FamilyInstance.GetReferences`, `HostObjectUtils.GetSideFaces`, `Creation.Document.NewDimension`) and compiles as C# 7.3 / net48 with the SDK-style project.
+- The source targets the Revit 2020 API surface (`Dimension`, `DimensionSegment`, `FilteredElementCollector`, `UnitFormatUtils`/`SpecTypeId`, `FamilyInstance.GetReferences`, `HostObjectUtils.GetSideFaces`, `Creation.Document.NewDimension`, `RevitLinkInstance.GetLinkDocument`, `Reference.LinkedElementId`, `View3D.GetOrientation`, `View.CropBox`) plus .NET Framework 4.8 platform APIs for BCF packaging (`System.IO.Compression.ZipArchive`, `System.Xml.Linq`) and compiles as C# 7.3 / net48 with the SDK-style project.
 
 **Requires live verification in Revit 2020 (first run):**
-- Ribbon tab/panel creation and button loading on a clean machine (now 9 buttons, including Settings & Options and Batch Audit Views).
+- Ribbon tab/panel creation and button loading on a clean machine (now 12 buttons, including Linked-Model Audit, BCF Export/Import, Settings & Options and Batch Audit Views).
 - Behaviour on real projects: family reference availability varies between sprinkler families; the fire-element heuristics (see below) may need tuning to project naming conventions.
 - Full end-to-end runs of FFD-05/FFD-06 on representative sprinkler families.
 - FFD-06 pipe path: dimensioning from the pipe location-curve/centreline reference to wall faces on real pipe runs (curved runs, vertical pipes and insulated pipes may need refinement).
 - FFD-09 batch run across a multi-view document (performance on large projects, view list completeness).
+- FFD-10: cross-link reference resolution and linked fire-element coverage on real federated models (link transforms, nested links and unloaded links included).
+- FFD-11: the exported `.bcf` opens correctly in at least one third-party BCF platform (BIMcollab / Revizto / Solibri / Trimble Connect) and in FFD-12.
+- FFD-12: component resolution against a model that was modified since export (expect unresolved references, not crashes).
 - Arabic UI: layout and text direction of both dialogs on a machine with Arabic locale.
 
 Report results (and screenshots) per release in this section — do not claim a check passed without evidence.
 
 ### Known limitations
 
-- **Linked models:** dimensions referencing geometry in linked Revit files are flagged (Info) rather than analysed; the nested linked geometry is outside the scope of every check.
+- **Linked models:** dimensions referencing geometry in linked Revit files are fully analysed by FFD-10 (resolution, broken references, coverage, duplicates). What remains out of scope: dimensions *inside* the linked document itself, links nested more than one level deep, and creating dimensions on linked geometry.
+- **BCF round-trip:** components are matched by decimal Revit element id (`AuthoringToolId`) — packages whose component ids come from IFC exports (IfcGuid only) import as topics without resolvable elements. Viewpoint snapshots are never written. Camera coordinates assume shared/project coordinates; heavily moved/rotated links may yield offset cameras.
 - **Spot dimensions** (`SpotDimension`) are excluded from scans by default and only included when opted in via Settings & Options; radial/arc dimensions are always collected normally.
 - **Fire-element detection** is heuristic: category + piping-system classification + connector system + name keywords (`sprinkler`, `hydrant`, `hose reel`, `fire`, `spk`). Unusual naming can cause false positives/negatives; results are spot-checkable in the UI.
 - **Clearance for pipes** dimensions straight runs at the midpoint only; curved segments, vertical pipes and insulated runs are skipped or approximated. Point families and pipes are covered; other curve categories are not.
@@ -409,7 +462,7 @@ README.md                            This file
 FFDimAddin2020/                      Revit 2020 add-in source
 ├── FFDimAddin2020.csproj            SDK-style, net48, RevitAPI refs via $(RevitApiPath)
 ├── FFDimAddin2020.addin             Revit manifest (AddIn Type="Application")
-├── App.cs                           Ribbon: FF Tools tab, 3 panels, 9 buttons
+├── App.cs                           Ribbon: FF Tools tab, 3 panels, 12 buttons
 ├── Localization.cs                  EN/AR string table (L.T), right-to-left support
 ├── CommandBase.cs                   Shared command plumbing + view guards
 ├── Commands/
@@ -418,18 +471,24 @@ FFDimAddin2020/                      Revit 2020 add-in source
 │   ├── CoverageCheckCommand.cs
 │   ├── ToleranceCheckCommand.cs
 │   ├── BatchAuditCommand.cs         FFD-09 multi-view audit
+│   ├── LinkedModelAuditCommand.cs   FFD-10 linked-model deep audit
 │   ├── SpacingDimensionCommand.cs
 │   ├── ClearanceDimensionCommand.cs
 │   ├── ExportReportCommand.cs
+│   ├── BcfExportCommand.cs          FFD-11 BCF 2.1 export
+│   ├── BcfImportCommand.cs          FFD-12 BCF 2.1 import
 │   └── SettingsCommand.cs           FFD-08 options dialog (no document required)
 ├── Core/
 │   ├── Models.cs                    DimensionIssue / FireElementInfo / AuditResult
 │   ├── UnitHelper.cs                Feet ↔ m/mm + project-unit formatting
-│   ├── FireFightingFilter.cs        Fire-element detection heuristics
+│   ├── FireFightingFilter.cs        Fire-element detection heuristics (+ whole-document scan)
 │   ├── DimensionScanner.cs          Dimension collection + reference keys + link detection
 │   ├── RedundancyFinder.cs          Duplicate reference-set grouping
 │   ├── DimensionAuditor.cs          Audit / coverage / tolerance engines
 │   ├── BatchAuditor.cs              Multi-view audit runner + auditable-view collector
+│   ├── LinkedModelAuditor.cs        FFD-10 cross-link resolution, coverage, link-aware keys
+│   ├── BcfExporter.cs               FFD-11 BCF 2.1 writer (markup + viewpoints, ZipArchive)
+│   ├── BcfImporter.cs               FFD-12 BCF 2.1 reader (namespace-tolerant parsing)
 │   ├── ToleranceRule.cs             Rule model + JSON store + defaults
 │   ├── AppSettings.cs               Options model + %APPDATA% JSON store
 │   └── ReportExporter.cs            CSV / HTML / JSON writers
@@ -437,7 +496,8 @@ FFDimAddin2020/                      Revit 2020 add-in source
     ├── AuditResultsWindow.cs        WPF results grid + filter/search/export (no XAML)
     ├── ToleranceSettingsWindow.cs
     ├── SettingsWindow.cs            FFD-08 options dialog (code-built WPF)
-    └── ViewPickerWindow.cs          FFD-09 view checklist (code-built WPF)
+    ├── ViewPickerWindow.cs          FFD-09 view checklist (code-built WPF)
+    └── BcfPreviewWindow.cs          FFD-12 BCF topic preview (code-built WPF)
 ```
 
 ---
@@ -455,7 +515,11 @@ Done in v1.1 (Revit add-in track):
 - ~~Pipe clearance dimensioning (linear runs to walls)~~ — FFD-06 now covers pipes
 - ~~Batch mode: run audits across selected views and merge reports~~ — FFD-09
 - ~~Localized UI (Arabic) behind a language setting~~ — Settings & Options
-- ~~Linked-model dimension analysis~~ — first step done: linked references are detected and flagged; nested linked-model geometry analysis remains open
+
+Done in v1.2 (Revit add-in track):
+
+- ~~Full analysis of dimensions that reference linked-model geometry (nested elements)~~ — FFD-10 (one level deep: nested links and dimensions inside the linked document remain out of scope)
+- ~~BCF/issue round-trip for findings (Revit add-in track)~~ — FFD-11 export + FFD-12 import (CLI track round-trip remains open)
 
 Still planned:
 
@@ -465,8 +529,8 @@ Still planned:
 4. HTML dashboard and summary by discipline, level, system, and category (CLI track).
 5. Regression tests and larger sample datasets (CLI track).
 6. Optional geometry, spatial, and coordination checks once a host adapter and reliable geometry source are defined.
-7. Full analysis of dimensions that reference linked-model geometry (nested elements, link transforms).
-8. BCF/issue round-trip for findings (both tracks).
+7. Deeper link scenarios: dimensions inside the linked document, links nested more than one level deep, link-transform-aware camera placement (Revit add-in track).
+8. BCF round-trip for the CLI track; BCF snapshot capture; comment replies written back to Revit (Revit add-in track).
 
 ## Contributing
 
