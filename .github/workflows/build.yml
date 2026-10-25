@@ -20,6 +20,7 @@ jobs:
         run: dotnet build src/BimTools.FFTDIM/BimTools.FFTDIM.csproj --configuration Release
       - name: Run sample audit
         run: |
+          mkdir -p artifacts
           set +e
           dotnet run --no-build --configuration Release --project src/BimTools.FFTDIM -- audit samples/sample-model.json --rules samples/audit-rules.json --out artifacts/report.json --csv artifacts/report.csv
           code=$?
