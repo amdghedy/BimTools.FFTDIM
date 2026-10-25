@@ -12,7 +12,9 @@ namespace BimTools.FFTDIM.Commands
     ///   · zero-value dimensions (broken / mis-snapped references),
     ///   · duplicate dimensions (identical reference sets),
     ///   · orphaned references,
-    ///   · zero-length segments inside chain dimensions.
+    ///   · zero-length segments inside chain dimensions,
+    ///   · linked-model references (when enabled in Settings & Options).
+    /// Spot dimensions are included only when opted in via Settings & Options.
     /// Findings open in the results window; nothing in the model is modified.
     /// </summary>
     [Transaction(TransactionMode.Manual)]
@@ -30,7 +32,10 @@ namespace BimTools.FFTDIM.Commands
                 return Result.Cancelled;
             }
 
-            AuditResult result = DimensionAuditor.Audit(doc, view);
+            AppSettings settings = AppSettingsStore.LoadOrDefaults();
+            L.Apply(settings);
+
+            AuditResult result = DimensionAuditor.Audit(doc, view, settings);
             if (result.Issues.Count == 0)
             {
                 TaskDialog.Show(App.Brand, string.Format(

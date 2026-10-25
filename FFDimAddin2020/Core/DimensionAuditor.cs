@@ -18,10 +18,15 @@ namespace BimTools.FFTDIM.Core
         //  1. Standard dimension audit
         // ------------------------------------------------------------------
 
-        public static AuditResult Audit(Document doc, View view)
+        /// <summary>Audits one view using the zero-value threshold, spot-dimension and
+        /// linked-model options from settings (defaults when null).</summary>
+        public static AuditResult Audit(Document doc, View view, AppSettings settings = null)
         {
+            AppSettings options = settings ?? new AppSettings();
+            double zeroToleranceFeet = options.ZeroValueThresholdFeet;
+
             var result = new AuditResult { DocumentTitle = doc.Title, ViewName = view.Name };
-            IList<Dimension> dimensions = DimensionScanner.Collect(doc, view.Id);
+            IList<Dimension> dimensions = DimensionScanner.Collect(doc, view.Id, options.IncludeSpotDimensions);
             result.TotalDimensions = dimensions.Count;
 
             foreach (Dimension dim in dimensions)
@@ -37,12 +42,23 @@ namespace BimTools.FFTDIM.Core
                     break;
                 }
 
-                // Zero-value dimension.
-                if (dim.Value.HasValue && Math.Abs(dim.Value.Value) < DimensionScanner.ZeroValueToleranceFeet)
+                // Linked-model reference (nested geometry not analysed).
+                if (options.FlagLinkedReferences && DimensionScanner.ReferencesLinkedModel(doc, dim))
+                {
+                    AddIssue(result, DimensionIssueType.LinkedReference, IssueSeverity.Info, dim.Id, label, "-",
+                        view.Name,
+                        "References geometry in a linked Revit model. Linked-model elements are outside the " +
+                        "scope of the detailed checks (duplicates and coverage are evaluated per host model only).");
+                }
+
+                // Zero-value dimension (threshold from user settings).
+                if (dim.Value.HasValue && Math.Abs(dim.Value.Value) < zeroToleranceFeet)
                 {
                     AddIssue(result, DimensionIssueType.ZeroValue, IssueSeverity.Error, dim.Id, label,
                         UnitHelper.FormatLength(doc, dim.Value.Value), view.Name,
-                        "Dimension measures (almost) zero — likely a broken or mis-snapped reference. Safe to delete.",
+                        string.Format("Dimension measures less than the configured zero-value threshold ({0} mm) — " +
+                                      "likely a broken or mis-snapped reference. Safe to delete.",
+                            options.ZeroValueThresholdMm.ToString("0.0#")),
                         true);
                 }
 
@@ -52,7 +68,7 @@ namespace BimTools.FFTDIM.Core
                     foreach (DimensionSegment segment in dim.Segments)
                     {
                         if (segment == null || !segment.Value.HasValue) continue;
-                        if (Math.Abs(segment.Value.Value) >= DimensionScanner.ZeroValueToleranceFeet) continue;
+                        if (Math.Abs(segment.Value.Value) >= zeroToleranceFeet) continue;
                         AddIssue(result, DimensionIssueType.SegmentZero, IssueSeverity.Error, dim.Id, label,
                             UnitHelper.FormatLength(doc, segment.Value.Value), view.Name,
                             "Chain dimension contains a zero-length segment — inspect the references at that segment.");
@@ -86,11 +102,12 @@ namespace BimTools.FFTDIM.Core
         //  2. Fire-fighting coverage audit
         // ------------------------------------------------------------------
 
-        public static AuditResult CoverageAudit(Document doc, View view)
+        public static AuditResult CoverageAudit(Document doc, View view, AppSettings settings = null)
         {
+            AppSettings options = settings ?? new AppSettings();
             var result = new AuditResult { DocumentTitle = doc.Title, ViewName = view.Name };
 
-            IList<Dimension> dimensions = DimensionScanner.Collect(doc, view.Id);
+            IList<Dimension> dimensions = DimensionScanner.Collect(doc, view.Id, options.IncludeSpotDimensions);
             result.TotalDimensions = dimensions.Count;
 
             // Set of every element referenced by any dimension in the view.
@@ -128,8 +145,9 @@ namespace BimTools.FFTDIM.Core
         //  3. Tolerance audit
         // ------------------------------------------------------------------
 
-        public static AuditResult ToleranceAudit(Document doc, View view, List<ToleranceRule> rules)
+        public static AuditResult ToleranceAudit(Document doc, View view, List<ToleranceRule> rules, AppSettings settings = null)
         {
+            AppSettings options = settings ?? new AppSettings();
             var result = new AuditResult { DocumentTitle = doc.Title, ViewName = view.Name };
 
             var enabled = new List<ToleranceRule>();
@@ -139,7 +157,7 @@ namespace BimTools.FFTDIM.Core
             }
             if (enabled.Count == 0) return result;
 
-            IList<Dimension> dimensions = DimensionScanner.Collect(doc, view.Id);
+            IList<Dimension> dimensions = DimensionScanner.Collect(doc, view.Id, options.IncludeSpotDimensions);
             result.TotalDimensions = dimensions.Count;
 
             foreach (Dimension dim in dimensions)
@@ -237,7 +255,9 @@ namespace BimTools.FFTDIM.Core
             });
         }
 
-        private static void SortIssues(AuditResult result)
+        /// <summary>Sorts issues by severity, then type, then element label. Public so the
+        /// batch auditor can re-sort a merged result.</summary>
+        public static void SortIssues(AuditResult result)
         {
             result.Issues.Sort((a, b) =>
             {

@@ -23,7 +23,11 @@ namespace BimTools.FFTDIM.Core
         ToleranceViolation,
 
         /// <summary>Fire-fighting element exists in the view but no dimension references it.</summary>
-        CoverageGap
+        CoverageGap,
+
+        /// <summary>At least one reference of the dimension resolves into a linked Revit model;
+        /// linked-model geometry is outside the scope of the detailed checks.</summary>
+        LinkedReference
     }
 
     /// <summary>Severity levels used for reporting and sorting.</summary>

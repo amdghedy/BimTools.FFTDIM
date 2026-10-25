@@ -21,13 +21,14 @@ namespace BimTools.FFTDIM.UI
         {
             _rules = rules;
 
-            Title = "FFTDIM — Tolerance rules";
+            Title = L.T("TolTitle");
             Width = 780;
             Height = 430;
             MinWidth = 640;
             MinHeight = 320;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
             Background = new SolidColorBrush(Color.FromRgb(0xF5, 0xF6, 0xF8));
+            if (L.RightToLeft) FlowDirection = FlowDirection.RightToLeft;
 
             var root = new Grid { Margin = new Thickness(12) };
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });

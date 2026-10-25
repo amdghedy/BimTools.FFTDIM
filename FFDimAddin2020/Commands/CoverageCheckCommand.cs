@@ -27,7 +27,10 @@ namespace BimTools.FFTDIM.Commands
                 return Result.Cancelled;
             }
 
-            AuditResult result = DimensionAuditor.CoverageAudit(doc, view);
+            AppSettings settings = AppSettingsStore.LoadOrDefaults();
+            L.Apply(settings);
+
+            AuditResult result = DimensionAuditor.CoverageAudit(doc, view, settings);
 
             if (result.TotalFireElements == 0)
             {

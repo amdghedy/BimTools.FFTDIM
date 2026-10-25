@@ -8,7 +8,8 @@ namespace BimTools.FFTDIM.Core
 {
     /// <summary>
     /// Writes an <see cref="AuditResult"/> to CSV (with UTF-8 BOM so Excel opens it
-    /// correctly) or to a self-contained HTML page. Dispatched by file extension.
+    /// correctly), to a self-contained HTML page, or to a machine-readable JSON file.
+    /// Dispatched by file extension.
     /// </summary>
     public static class ReportExporter
     {
@@ -18,6 +19,10 @@ namespace BimTools.FFTDIM.Core
             if (extension == ".html" || extension == ".htm")
             {
                 File.WriteAllText(path, BuildHtml(result), new UTF8Encoding(true));
+            }
+            else if (extension == ".json")
+            {
+                File.WriteAllText(path, BuildJson(result), new UTF8Encoding(false));
             }
             else
             {
@@ -92,6 +97,77 @@ namespace BimTools.FFTDIM.Core
                 Encode(result.ViewName ?? "-"),
                 result.Timestamp,
                 rows.ToString());
+        }
+
+        /// <summary>
+        /// Builds a machine-readable JSON report. Written by hand (no serializer
+        /// dependencies) so the shape stays stable and friendly to Power BI / Excel Power
+        /// Query / CI scripts. Strings are JSON-escaped including control characters.
+        /// </summary>
+        public static string BuildJson(AuditResult result)
+        {
+            var builder = new StringBuilder();
+            builder.Append("{\n  \"document\": ").Append(JsonString(result.DocumentTitle ?? "-"));
+            builder.Append(",\n  \"view\": ").Append(JsonString(result.ViewName ?? "-"));
+            builder.Append(",\n  \"generated\": \"").Append(result.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")).Append('"');
+            builder.Append(",\n  \"tool\": \"BimTools.FFTDIM\"");
+            builder.Append(",\n  \"totalDimensions\": ").Append(result.TotalDimensions);
+            builder.Append(",\n  \"totalFireElements\": ").Append(result.TotalFireElements);
+            builder.Append(",\n  \"coveredFireElements\": ").Append(result.CoveredFireElements);
+            builder.Append(",\n  \"errors\": ").Append(result.CountBySeverity(IssueSeverity.Error));
+            builder.Append(",\n  \"warnings\": ").Append(result.CountBySeverity(IssueSeverity.Warning));
+            builder.Append(",\n  \"info\": ").Append(result.CountBySeverity(IssueSeverity.Info));
+            builder.Append(",\n  \"issues\": [\n");
+
+            bool first = true;
+            foreach (DimensionIssue issue in result.Issues)
+            {
+                if (!first) builder.Append(",\n");
+                first = false;
+                builder.Append("    { \"severity\": ").Append(JsonString(issue.Severity.ToString()));
+                builder.Append(", \"type\": ").Append(JsonString(issue.Type.ToString()));
+                builder.Append(", \"element\": ").Append(JsonString(ElementText(issue)));
+                builder.Append(", \"elementId\": ").Append(
+                    issue.ElementId != null && issue.ElementId != ElementId.InvalidElementId
+                        ? issue.ElementId.IntegerValue.ToString()
+                        : "null");
+                builder.Append(", \"value\": ").Append(JsonString(issue.ValueText ?? "-"));
+                builder.Append(", \"view\": ").Append(JsonString(issue.ViewName ?? "-"));
+                builder.Append(", \"detail\": ").Append(JsonString(issue.Detail ?? "-"));
+                builder.Append(" }");
+            }
+
+            builder.Append("\n  ]\n}");
+            return builder.ToString();
+        }
+
+        private static string JsonString(string value)
+        {
+            var escaped = new StringBuilder();
+            escaped.Append('"');
+            foreach (char c in value ?? string.Empty)
+            {
+                switch (c)
+                {
+                    case '"': escaped.Append("\\\""); break;
+                    case '\\': escaped.Append("\\\\"); break;
+                    case '\n': escaped.Append("\\n"); break;
+                    case '\r': escaped.Append("\\r"); break;
+                    case '\t': escaped.Append("\\t"); break;
+                    default:
+                        if (c < ' ')
+                        {
+                            escaped.Append("\\u").Append(((int)c).ToString("x4"));
+                        }
+                        else
+                        {
+                            escaped.Append(c);
+                        }
+                        break;
+                }
+            }
+            escaped.Append('"');
+            return escaped.ToString();
         }
 
         private static string ElementText(DimensionIssue issue)

@@ -12,8 +12,9 @@ namespace BimTools.FFTDIM.Commands
     /// FFD-05 · Spacing Chain (model-changing).
     /// Select two or more point-based fire-fighting families (sprinklers, point fittings) in a
     /// plan view. FFTDIM orders their insertion points along the dominant axis of the view and
-    /// creates ONE multi-segment dimension through their centre reference planes, offset 1 m
-    /// perpendicular to the chain so it never sits on top of the elements.
+    /// creates ONE multi-segment dimension through their centre reference planes, offset
+    /// perpendicular to the chain (default 1 m — configurable in Settings & Options) so it
+    /// never sits on top of the elements.
     ///
     /// Families that expose no usable centre reference plane are skipped and reported.
     /// A single transaction wraps the creation; on failure it is rolled back.
@@ -21,8 +22,7 @@ namespace BimTools.FFTDIM.Commands
     [Transaction(TransactionMode.Manual)]
     public class SpacingDimensionCommand : CommandBase
     {
-        private const double LineExtensionFeet = 0.3;    // ≈ 90 mm overhang at each chain end
-        private const double LineOffsetMeters = 1.0;     // perpendicular offset of the dimension line
+        private const double LineExtensionFeetFallback = 0.3; // used only if settings are unreadable
 
         private class SpacingItem
         {
@@ -86,6 +86,9 @@ namespace BimTools.FFTDIM.Commands
                 return Result.Cancelled;
             }
 
+            AppSettings settings = AppSettingsStore.LoadOrDefaults();
+            L.Apply(settings);
+
             // Dominant axis of the selection inside the current plan view.
             XYZ right = Flatten(view.RightDirection, XYZ.BasisX);
             XYZ up = Flatten(view.UpDirection, XYZ.BasisY);
@@ -95,8 +98,10 @@ namespace BimTools.FFTDIM.Commands
 
             items.Sort((a, b) => Dot(a.Point, axis).CompareTo(Dot(b.Point, axis)));
 
-            double extension = UnitHelper.FeetFromMeters(LineExtensionFeet);
-            double offset = UnitHelper.FeetFromMeters(LineOffsetMeters);
+            double extension = settings.ChainExtensionFeet;
+            double offset = settings.ChainOffsetFeet;
+            if (extension <= 0) extension = LineExtensionFeetFallback;
+            if (offset <= 0) offset = UnitHelper.FeetFromMeters(1.0);
             double startProjection = Dot(items[0].Point, axis);
             double endProjection = Dot(items[items.Count - 1].Point, axis);
 
